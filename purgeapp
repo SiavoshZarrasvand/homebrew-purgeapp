@@ -65,17 +65,16 @@ nuke() {
   fi
 
   # Try without sudo first, then with sudo
-  /bin/rm -rf -- "$path" 2>&1
+  /bin/rm -rf -- "$path" 2>/dev/null
   if [[ -e "$path" || -L "$path" ]]; then
-    /usr/bin/sudo /bin/rm -rf -- "$path" 2>&1
+    /usr/bin/sudo /bin/rm -rf -- "$path" 2>/dev/null
   fi
 
-  # Report based on whether path still exists
   if [[ ! -e "$path" && ! -L "$path" ]]; then
     echo "  ${GREEN}✓${RESET} $path"
     (( removed++ ))
   else
-    echo "  ${RED}✗${RESET} $path"
+    echo "  ${RED}✗${RESET} $path (SIP-protected, cannot remove)"
     failed_paths+=("$path")
     (( failed++ ))
   fi
@@ -151,17 +150,7 @@ launchctl remove "com.${APP_LOWER}" 2>/dev/null
 echo "  ${GREEN}✓${RESET} Done"
 echo ""
 
-# ── Residual scan ─────────────────────────────────────────────────────────────
-echo "${BOLD}Scanning for remaining traces...${RESET}"
-LEFTOVERS=$(/usr/bin/sudo /usr/bin/find "$HOME/Library" "/Library" "/Applications" -maxdepth 5 -iname "*${APP_LOWER}*" -not -path "*/Trash/*" -not -path "*/.git/*" 2>/dev/null)
 
-if [[ -n "$LEFTOVERS" ]]; then
-  echo "  ${YELLOW}⚠  May need manual review:${RESET}"
-  echo "$LEFTOVERS" | while read -r line; do echo "     $line"; done
-else
-  echo "  ${GREEN}✓${RESET} Clean"
-fi
-echo ""
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo "────────────────────────────────────────"
