@@ -3,7 +3,7 @@
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp
 
-VERSION="3.0.1"
+VERSION="3.0.0"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -65,9 +65,9 @@ nuke() {
   fi
 
   # Try without sudo first, then with sudo
-  rm -rf -- "$path" 2>/dev/null
+  rm -rf -- "$path" 2>&1
   if [[ -e "$path" || -L "$path" ]]; then
-    sudo rm -rf -- "$path" 2>/dev/null
+    sudo rm -rf -- "$path" 2>&1
   fi
 
   # Report based on whether path still exists
