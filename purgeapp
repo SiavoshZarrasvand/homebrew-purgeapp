@@ -57,18 +57,47 @@ APP_BUNDLE="/Applications/${APP_NAME}.app"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 removed_count=0
 not_found_count=0
+failed_count=0
+failed_paths=()
 
 safe_remove() {
   local target="$1"
+  local use_sudo="${2:-auto}"   # auto | yes | no
+
   if [[ -e "$target" || -L "$target" ]]; then
     if $DRY_RUN; then
       echo "  ${YELLOW}[dry-run]${RESET} Would remove: $target"
-    else
-      sudo rm -rf "$target" 2>/dev/null && \
-        echo "  ${GREEN}✓${RESET} Removed: $target" || \
-        echo "  ${RED}✗${RESET} Failed to remove (permission?): $target"
+      (( removed_count++ ))
+      return
     fi
-    (( removed_count++ ))
+
+    # Determine whether to use sudo:
+    # - always sudo for /Library and /Applications (system paths)
+    # - never sudo for ~/Library/Containers and ~/Library/Group Containers
+    #   (TCC-protected; sudo makes it worse, not better)
+    # - otherwise use sudo for anything outside $HOME
+    local do_sudo=false
+    if [[ "$use_sudo" == "yes" ]]; then
+      do_sudo=true
+    elif [[ "$use_sudo" == "no" ]]; then
+      do_sudo=false
+    elif [[ "$target" == /Library/* || "$target" == /Applications/* || "$target" == /System/* ]]; then
+      do_sudo=true
+    elif [[ "$target" != "$HOME"* ]]; then
+      do_sudo=true
+    fi
+
+    local cmd="rm -rf"
+    $do_sudo && cmd="sudo rm -rf"
+
+    if eval "$cmd \"$target\"" 2>/dev/null; then
+      echo "  ${GREEN}✓${RESET} Removed: $target"
+      (( removed_count++ ))
+    else
+      echo "  ${RED}✗${RESET} Failed: $target"
+      failed_paths+=("$target")
+      (( failed_count++ ))
+    fi
   else
     (( not_found_count++ ))
   fi
@@ -76,9 +105,10 @@ safe_remove() {
 
 safe_remove_glob() {
   local pattern="$1"
+  local use_sudo="${2:-auto}"
   setopt local_options nullglob
   for match in ${~pattern}; do
-    safe_remove "$match"
+    safe_remove "$match" "$use_sudo"
   done
 }
 
@@ -202,8 +232,27 @@ echo "────────────────────────�
 if $DRY_RUN; then
   echo "${YELLOW}Dry run complete.${RESET} Run without ${BOLD}-d${RESET} to actually delete."
 else
-  echo "${GREEN}${BOLD}✅ purgeapp complete.${RESET}"
-  echo "   Items removed : ${removed_count}"
-  echo "   Not found     : ${not_found_count} (already clean or never existed)"
+  if [[ $failed_count -eq 0 ]]; then
+    echo "${GREEN}${BOLD}✅ purgeapp complete.${RESET}"
+  else
+    echo "${YELLOW}${BOLD}⚠  purgeapp finished with some failures.${RESET}"
+  fi
+  echo "   Removed  : ${removed_count}"
+  echo "   Not found: ${not_found_count} (already clean or never existed)"
+  if [[ $failed_count -gt 0 ]]; then
+    echo "   Failed   : ${failed_count}"
+    echo ""
+    echo "${YELLOW}The following paths could not be removed:${RESET}"
+    for p in "${failed_paths[@]}"; do
+      echo "   $p"
+    done
+    echo ""
+    echo "${BOLD}These are likely protected by macOS TCC (Full Disk Access).${RESET}"
+    echo "To remove them, grant your Terminal Full Disk Access first:"
+    echo ""
+    echo "  1. Open ${BOLD}System Settings → Privacy & Security → Full Disk Access${RESET}"
+    echo "  2. Enable your terminal app (Terminal, iTerm2, etc.)"
+    echo "  3. Re-run: ${BOLD}purgeapp ${APP_NAME}${RESET}"
+  fi
 fi
 echo ""
