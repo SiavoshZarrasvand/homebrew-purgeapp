@@ -84,9 +84,23 @@ echo "  ${GREEN}✓${RESET} SHA256: ${SHA}"
 
 # ── Update formula ────────────────────────────────────────────────────────────
 echo "${BOLD}Updating formula...${RESET}"
-sed -i '' "s|refs/tags/v[0-9.]*\.tar\.gz|refs/tags/${TAG}.tar.gz|" "$FORMULA"
-sed -i '' "s/sha256 \"[a-zA-Z0-9_]*\"/sha256 \"${SHA}\"/" "$FORMULA"
-sed -i '' "s/version \"[0-9.]*\"/version \"${VERSION}\"/" "$FORMULA"
+python3 - "$FORMULA" "$TAG" "$SHA" "$VERSION" <<'PYEOF'
+import sys, re
+
+formula_path, tag, sha, version = sys.argv[1:]
+
+with open(formula_path, 'r') as f:
+    content = f.read()
+
+content = re.sub(r'refs/tags/v[\d.]+\.tar\.gz', f'refs/tags/{tag}.tar.gz', content)
+content = re.sub(r'sha256 "[a-fA-F0-9_]+"', f'sha256 "{sha}"', content)
+content = re.sub(r'version "[\d.]+"', f'version "{version}"', content)
+
+with open(formula_path, 'w') as f:
+    f.write(content)
+
+print(f"  Updated: url, sha256, version → {version}")
+PYEOF
 echo "  ${GREEN}✓${RESET} Updated ${FORMULA}"
 
 git add "$FORMULA"
