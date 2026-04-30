@@ -1,10 +1,10 @@
 class Purgeapp < Formula
   desc "Completely remove a macOS app and all its leftover files"
   homepage "https://github.com/SiavoshZarrasvand/homebrew-purgeapp"
-  url "https://github.com/SiavoshZarrasvand/homebrew-purgeapp/archive/refs/tags/v3.0.4.tar.gz"
-  sha256 "e7d1547f763465e4b4eee717e57f3b1aeed433bb380ce77fa3c5bd96c20c6900"
+  url "https://github.com/SiavoshZarrasvand/homebrew-purgeapp/archive/refs/tags/v3.0.5.tar.gz"
+  sha256 "3acae9d377809b50c3ead6cae93e293bda4c149dc5ee4313b1fd43e89d000297"
   license "MIT"
-  version "3.0.4"
+  version "3.0.5"
 
   depends_on :macos
 
