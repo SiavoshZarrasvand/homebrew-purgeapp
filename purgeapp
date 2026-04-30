@@ -3,7 +3,7 @@
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp
 
-VERSION="3.0.5"
+VERSION="3.0.6"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
