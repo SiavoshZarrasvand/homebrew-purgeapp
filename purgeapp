@@ -3,7 +3,7 @@
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp
 
-VERSION="3.0.3"
+VERSION="3.0.0"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -65,9 +65,9 @@ nuke() {
   fi
 
   # Try without sudo first, then with sudo
-  rm -rf -- "$path" 2>&1
+  /bin/rm -rf -- "$path" 2>&1
   if [[ -e "$path" || -L "$path" ]]; then
-    sudo rm -rf -- "$path" 2>&1
+    /usr/bin/sudo /bin/rm -rf -- "$path" 2>&1
   fi
 
   # Report based on whether path still exists
@@ -89,7 +89,7 @@ echo ""
 # ── Kill processes ────────────────────────────────────────────────────────────
 echo "${BOLD}Stopping processes...${RESET}"
 if pgrep -fi "$APP_NAME" > /dev/null 2>&1; then
-  sudo pkill -fi "$APP_NAME" 2>/dev/null
+  /usr/bin/sudo /usr/bin/pkill -fi "$APP_NAME" 2>/dev/null
   sleep 1
   echo "  ${GREEN}✓${RESET} Killed"
 else
@@ -146,18 +146,14 @@ echo ""
 echo "${BOLD}Unloading launch services...${RESET}"
 launchctl remove "com.${APP_LOWER}.agent" 2>/dev/null
 launchctl remove "com.${APP_LOWER}" 2>/dev/null
-sudo launchctl remove "com.${APP_LOWER}.daemon" 2>/dev/null
-sudo launchctl remove "com.${APP_LOWER}" 2>/dev/null
+/usr/bin/sudo /bin/launchctl remove "com.${APP_LOWER}.daemon" 2>/dev/null
+/usr/bin/sudo /bin/launchctl remove "com.${APP_LOWER}" 2>/dev/null
 echo "  ${GREEN}✓${RESET} Done"
 echo ""
 
 # ── Residual scan ─────────────────────────────────────────────────────────────
 echo "${BOLD}Scanning for remaining traces...${RESET}"
-LEFTOVERS=$(sudo find /Users /Library /Applications \
-  -iname "*${APP_LOWER}*" \
-  -not -path "*/Trash/*" \
-  -not -path "*/.git/*" \
-  2>/dev/null)
+LEFTOVERS=$(/usr/bin/sudo /usr/bin/find "$HOME/Library" "/Library" "/Applications" -maxdepth 5 -iname "*${APP_LOWER}*" -not -path "*/Trash/*" -not -path "*/.git/*" 2>/dev/null)
 
 if [[ -n "$LEFTOVERS" ]]; then
   echo "  ${YELLOW}⚠  May need manual review:${RESET}"
