@@ -15,6 +15,6 @@ class Purgeapp < Formula
 
   test do
     output = shell_output("#{bin}/purgeapp --version")
-    assert_match "1.0.1", output
+    assert_match version.to_s, output
   end
 end
