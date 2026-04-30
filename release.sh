@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 # release.sh — tag a release, compute SHA256, update formula, push everything
-# Usage: ./release.sh 1.0.1
+# Usage: ./release.sh 1.0.2
 
 set -e
 
@@ -20,7 +20,7 @@ SCRIPT="purgeapp"
 VERSION="$1"
 if [[ -z "$VERSION" ]]; then
   echo "${RED}Error:${RESET} No version provided."
-  echo "Usage: ./release.sh <version>   e.g. ./release.sh 1.0.1"
+  echo "Usage: ./release.sh <version>   e.g. ./release.sh 1.0.2"
   exit 1
 fi
 
@@ -45,22 +45,24 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
-# ── Bump version in script ────────────────────────────────────────────────────
-echo "${BOLD}Bumping version to ${VERSION}...${RESET}"
+# ── Step 1: Bump version in script, commit, tag, push ────────────────────────
+# The tag is created first so GitHub generates the tarball from the
+# correct commit. The formula is updated AFTER because we need the
+# tarball SHA256, which only exists once the tag is live.
+echo "${BOLD}Step 1: Bumping version in script...${RESET}"
 sed -i '' "s/^VERSION=.*/VERSION=\"${VERSION}\"/" "$SCRIPT"
 git add "$SCRIPT"
-git commit -m "Bump version to ${VERSION}" 2>/dev/null || true
+git commit -m "Bump version to ${VERSION}"
 git push origin main
-echo "  ${GREEN}✓${RESET} Pushed version bump"
+echo "  ${GREEN}✓${RESET} Pushed"
 
-# ── Tag and push ──────────────────────────────────────────────────────────────
-echo "${BOLD}Tagging ${TAG}...${RESET}"
+echo "${BOLD}Step 2: Creating tag ${TAG}...${RESET}"
 git tag "$TAG"
 git push origin "$TAG"
-echo "  ${GREEN}✓${RESET} Pushed tag ${TAG}"
+echo "  ${GREEN}✓${RESET} Tag pushed — GitHub is generating the tarball"
 
-# ── Wait for GitHub tarball ───────────────────────────────────────────────────
-echo "${BOLD}Waiting for GitHub to generate tarball...${RESET}"
+# ── Step 2: Wait for tarball, compute SHA256 ─────────────────────────────────
+echo "${BOLD}Step 3: Fetching SHA256...${RESET}"
 sleep 5
 
 SHA=""
@@ -82,8 +84,10 @@ fi
 
 echo "  ${GREEN}✓${RESET} SHA256: ${SHA}"
 
-# ── Update formula ────────────────────────────────────────────────────────────
-echo "${BOLD}Updating formula...${RESET}"
+# ── Step 3: Update formula on main ───────────────────────────────────────────
+# Brew reads the formula from main, not from the tag — so updating
+# the formula after tagging is correct and intentional.
+echo "${BOLD}Step 4: Updating formula...${RESET}"
 python3 - "$FORMULA" "$TAG" "$SHA" "$VERSION" <<'PYEOF'
 import sys, re
 
@@ -93,26 +97,27 @@ with open(formula_path, 'r') as f:
     content = f.read()
 
 content = re.sub(r'refs/tags/v[\d.]+\.tar\.gz', f'refs/tags/{tag}.tar.gz', content)
-content = re.sub(r'sha256 "[a-fA-F0-9_]+"', f'sha256 "{sha}"', content)
+content = re.sub(r'sha256 "[^"]+"', f'sha256 "{sha}"', content)
 content = re.sub(r'version "[\d.]+"', f'version "{version}"', content)
 
 with open(formula_path, 'w') as f:
     f.write(content)
-
-print(f"  Updated: url, sha256, version → {version}")
 PYEOF
-echo "  ${GREEN}✓${RESET} Updated ${FORMULA}"
+
+echo "  ${GREEN}✓${RESET} Updated — verifying:"
+grep -E "^\s*(url|sha256|version)" "$FORMULA"
 
 git add "$FORMULA"
-git commit -m "Release ${TAG}: update formula SHA256"
+git commit -m "Release ${TAG}: update formula url, sha256, version"
 git push origin main
+echo "  ${GREEN}✓${RESET} Formula pushed to main"
 
 echo ""
 echo "${GREEN}${BOLD}✅ Done! purgeapp ${TAG} is live.${RESET}"
 echo ""
-echo "Install:"
+echo "Fresh install:"
 echo "  ${BOLD}brew tap SiavoshZarrasvand/purgeapp && brew install purgeapp${RESET}"
 echo ""
-echo "Upgrade (if already installed):"
+echo "Upgrade if already installed:"
 echo "  ${BOLD}brew upgrade purgeapp${RESET}"
 echo ""
