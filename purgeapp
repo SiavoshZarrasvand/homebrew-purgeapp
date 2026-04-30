@@ -3,7 +3,7 @@
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp
 
-VERSION="2.0.3"
+VERSION="1.0.0"
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -111,8 +111,10 @@ safe_remove() {
 safe_remove_glob() {
   local pattern="$1"
   local use_sudo="${2:-auto}"
-  setopt local_options nullglob
-  for match in ${~pattern}; do
+  # Use (N) glob qualifier: no error if no match, and quote each result properly
+  local -a matches
+  matches=( ${~pattern}(N) )
+  for match in "${matches[@]}"; do
     safe_remove "$match" "$use_sudo"
   done
 }
