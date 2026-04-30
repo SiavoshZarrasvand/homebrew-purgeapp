@@ -3,7 +3,7 @@
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp
 
-VERSION="2.0.2"
+VERSION="1.0.0"
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -31,13 +31,13 @@ usage() {
 }
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
-DRY_RUN=false
+DRY_RUN="no"
 
 for arg in "$@"; do
   case $arg in
     -h|--help)    usage; exit 0 ;;
     -v|--version) echo "purgeapp v${VERSION}"; exit 0 ;;
-    -d|--dry-run) DRY_RUN=true ;;
+    -d|--dry-run) DRY_RUN="yes" ;;
   esac
 done
 
@@ -65,7 +65,7 @@ safe_remove() {
   local use_sudo="${2:-auto}"   # auto | yes | no
 
   if [[ -e "$target" || -L "$target" ]]; then
-    if $DRY_RUN; then
+    if [[ "$DRY_RUN" == "yes" ]]; then
       echo "  ${YELLOW}[dry-run]${RESET} Would remove: $target"
       (( removed_count++ ))
       return
@@ -76,19 +76,20 @@ safe_remove() {
     # - never sudo for ~/Library/Containers and ~/Library/Group Containers
     #   (TCC-protected; sudo makes it worse, not better)
     # - otherwise use sudo for anything outside $HOME
-    local do_sudo=false
+    # Determine if sudo is needed using string comparison, not boolean
+    local needs_sudo="no"
     if [[ "$use_sudo" == "yes" ]]; then
-      do_sudo=true
+      needs_sudo="yes"
     elif [[ "$use_sudo" == "no" ]]; then
-      do_sudo=false
+      needs_sudo="no"
     elif [[ "$target" == /Library/* || "$target" == /Applications/* || "$target" == /System/* ]]; then
-      do_sudo=true
+      needs_sudo="yes"
     elif [[ "$target" != "$HOME"* ]]; then
-      do_sudo=true
+      needs_sudo="yes"
     fi
 
     local result=0
-    if $do_sudo; then
+    if [[ "$needs_sudo" == "yes" ]]; then
       sudo rm -rf -- "$target" 2>/dev/null; result=$?
     else
       rm -rf -- "$target" 2>/dev/null; result=$?
@@ -119,13 +120,13 @@ safe_remove_glob() {
 # ── Header ────────────────────────────────────────────────────────────────────
 echo ""
 echo "${BOLD}${BLUE}purgeapp${RESET} — purging ${BOLD}${APP_NAME}${RESET}"
-$DRY_RUN && echo "${YELLOW}  Dry-run mode: nothing will actually be deleted${RESET}"
+[[ "$DRY_RUN" == "yes" ]] && echo "${YELLOW}  Dry-run mode: nothing will actually be deleted${RESET}"
 echo ""
 
 # ── 1. Kill processes ─────────────────────────────────────────────────────────
 echo "${BOLD}Stopping processes...${RESET}"
 if pgrep -fi "$APP_NAME" > /dev/null 2>&1; then
-  if $DRY_RUN; then
+  if [[ "$DRY_RUN" == "yes" ]]; then
     echo "  ${YELLOW}[dry-run]${RESET} Would kill processes matching: $APP_NAME"
   else
     sudo pkill -fi "$APP_NAME" 2>/dev/null
@@ -202,7 +203,7 @@ echo ""
 
 # ── 5. Unload launch services ─────────────────────────────────────────────────
 echo "${BOLD}Unloading launch services...${RESET}"
-if $DRY_RUN; then
+if [[ "$DRY_RUN" == "yes" ]]; then
   echo "  ${YELLOW}[dry-run]${RESET} Would unload launchctl entries for com.${APP_LOWER}"
 else
   launchctl remove "com.${APP_LOWER}.agent" 2>/dev/null
@@ -233,7 +234,7 @@ echo ""
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo "────────────────────────────────────────"
-if $DRY_RUN; then
+if [[ "$DRY_RUN" == "yes" ]]; then
   echo "${YELLOW}Dry run complete.${RESET} Run without ${BOLD}-d${RESET} to actually delete."
 else
   if [[ $failed_count -eq 0 ]]; then
