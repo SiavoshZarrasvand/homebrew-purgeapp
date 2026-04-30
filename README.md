@@ -21,11 +21,13 @@ brew install purgeapp
 purgeapp <AppName>
 ```
 
-Both of these work:
+All of these work:
 
 ```bash
 purgeapp Workpuls
 purgeapp Workpuls.app
+purgeapp "pgAdmin 4"
+purgeapp pgAdmin\ 4.app
 ```
 
 ### Dry run first (recommended)
@@ -65,8 +67,6 @@ purgeapp --help       # Show help
 | WebKit storage | `~/Library/WebKit/` |
 | Cookies | `~/Library/Cookies/` |
 
-After removing all known paths, `purgeapp` runs a final filesystem scan and reports anything it may have missed.
-
 ---
 
 ## Works even if you already deleted the app
@@ -75,14 +75,18 @@ If you dragged the `.app` to Trash manually, `purgeapp` skips the bundle and con
 
 ---
 
-## Releasing a new version (maintainer)
+## Notes
+
+- Some files under `/Library/PrivilegedHelperTools` are SIP-protected and cannot be removed by any tool without disabling System Integrity Protection. `purgeapp` will clearly report these.
+- `purgeapp` tries removal without `sudo` first, then retries with `sudo` for system paths automatically.
+
+---
+
+## Upgrade
 
 ```bash
-chmod +x release.sh
-./release.sh 1.0.1
+brew update && brew upgrade purgeapp
 ```
-
-That's it. The script bumps the version, tags the release, computes the SHA256, updates the formula, and pushes everything.
 
 ---
 
