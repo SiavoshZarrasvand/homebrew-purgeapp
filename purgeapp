@@ -39,7 +39,8 @@ for arg in "$@"; do
 done
 
 APP_RAW="${@:#-*}"
-APP_RAW="${APP_RAW// /}"
+APP_RAW="${APP_RAW## }"
+APP_RAW="${APP_RAW%% }"
 
 if [[ -z "$APP_RAW" ]]; then
   echo "${RED}Error:${RESET} No app name provided."
@@ -98,7 +99,11 @@ echo ""
 
 # ── App bundle ────────────────────────────────────────────────────────────────
 echo "${BOLD}Removing app bundle...${RESET}"
-nuke "/Applications/${APP_NAME}.app"
+if [[ -d "/Applications/${APP_NAME}.app" ]]; then
+  nuke "/Applications/${APP_NAME}.app"
+else
+  echo "  ${YELLOW}⚠${RESET}  Not found at /Applications/${APP_NAME}.app"
+fi
 echo ""
 
 # ── User Library ──────────────────────────────────────────────────────────────
