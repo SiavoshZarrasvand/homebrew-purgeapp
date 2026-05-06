@@ -111,10 +111,13 @@ echo "${BOLD}Removing user files...${RESET}"
 nuke "$HOME/Library/Application Support/$APP_NAME"
 nuke "$HOME/Library/Application Support/$APP_LOWER"
 nuke "$HOME/Library/Application Support/${APP_LOWER}-agent"
+for f in "$HOME/Library/Application Support/"*"${APP_LOWER}"*(N); do nuke "$f"; done
 nuke "$HOME/Library/Caches/$APP_NAME"
 nuke "$HOME/Library/Caches/$APP_LOWER"
+for f in "$HOME/Library/Caches/"*"${APP_LOWER}"*(N); do nuke "$f"; done
 nuke "$HOME/Library/Logs/$APP_NAME"
 nuke "$HOME/Library/Logs/$APP_LOWER"
+for f in "$HOME/Library/Logs/"*"${APP_LOWER}"*(N); do nuke "$f"; done
 nuke "$HOME/Library/Saved Application State/${APP_LOWER}.savedState"
 nuke "$HOME/Library/WebKit/$APP_LOWER"
 nuke "$HOME/Library/Cookies/${APP_LOWER}.binarycookies"
