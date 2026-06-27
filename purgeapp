@@ -1,4 +1,5 @@
 #!/usr/bin/env zsh
+# purgeapp/purgeapp
 
 # purgeapp — completely remove a macOS app and all its leftover files
 # https://github.com/SiavoshZarrasvand/homebrew-purgeapp

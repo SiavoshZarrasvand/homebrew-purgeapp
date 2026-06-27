@@ -1,4 +1,5 @@
 #!/usr/bin/env zsh
+# purgeapp/release.sh
 
 # release.sh — auto-increment version, tag, compute SHA256, update formula
 # Usage: ./release.sh

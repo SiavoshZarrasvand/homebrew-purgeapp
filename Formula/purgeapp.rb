@@ -1,3 +1,4 @@
+# purgeapp/Formula/purgeapp.rb
 class Purgeapp < Formula
   desc "Completely remove a macOS app and all its leftover files"
   homepage "https://github.com/SiavoshZarrasvand/homebrew-purgeapp"
