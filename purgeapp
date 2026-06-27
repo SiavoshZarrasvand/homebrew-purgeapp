@@ -17,24 +17,27 @@ usage() {
   echo "${BOLD}purgeapp${RESET} v${VERSION} — completely remove a macOS app and all its leftovers"
   echo ""
   echo "${BOLD}Usage:${RESET}"
-  echo "  purgeapp <AppName>"
+  echo "  purgeapp [options] <AppName>"
   echo "  purgeapp Workpuls"
   echo "  purgeapp Workpuls.app"
   echo ""
   echo "${BOLD}Options:${RESET}"
   echo "  -d, --dry-run    Show what would be removed without deleting anything"
+  echo "  -y, --yes        Auto-confirm deletion prompts"
   echo "  -v, --version    Print version"
   echo "  -h, --help       Show this help message"
   echo ""
 }
 
 DRY_RUN="no"
+YES="no"
 
 for arg in "$@"; do
   case $arg in
     -h|--help)    usage; exit 0 ;;
     -v|--version) echo "purgeapp v${VERSION}"; exit 0 ;;
     -d|--dry-run) DRY_RUN="yes" ;;
+    -y|--yes)     YES="yes" ;;
   esac
 done
 
@@ -51,6 +54,55 @@ fi
 APP_NAME="${APP_RAW%.app}"
 APP_LOWER="${APP_NAME:l}"
 
+# App-specific custom paths (for paths not covered by standard search directories)
+typeset -A APP_CUSTOM_PATHS
+APP_CUSTOM_PATHS=(
+  [whatsapp]="$HOME/Library/Group Containers/group.net.whatsapp.WhatsApp.shared"
+)
+
+# Critical paths that should never be deleted under any circumstances
+CRITICAL_PATHS=(
+  "/"
+  "/Applications"
+  "/Library"
+  "/System"
+  "/Users"
+  "/Volumes"
+  "/bin"
+  "/sbin"
+  "/usr"
+  "/var"
+  "/etc"
+  "$HOME"
+  "$HOME/Applications"
+  "$HOME/Library"
+  "$HOME/Desktop"
+  "$HOME/Documents"
+  "$HOME/Downloads"
+  "$HOME/Movies"
+  "$HOME/Music"
+  "$HOME/Pictures"
+)
+
+is_critical_path() {
+  local target_path="${1:A}"
+  target_path="${target_path%/}"
+
+  for cp in "${CRITICAL_PATHS[@]}"; do
+    local resolved_cp="${cp:A}"
+    resolved_cp="${resolved_cp%/}"
+    if [[ "$target_path" == "$resolved_cp" ]]; then
+      return 0
+    fi
+  done
+  
+  if [[ "$target_path" == "" || "$target_path" == "/" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
 # Find the app bundle to extract bundle identifier if possible
 APP_PATH=""
 BUNDLE_ID=""
@@ -66,19 +118,170 @@ if [[ -n "$APP_PATH" ]]; then
   BUNDLE_ID="${BUNDLE_ID%% }"
 fi
 
+candidates=()
+
+add_candidate() {
+  local path="$1"
+  [[ ! -e "$path" && ! -L "$path" ]] && return  # doesn't exist, skip silently
+
+  if is_critical_path "$path"; then
+    echo "  ${YELLOW}⚠${RESET} Skipped critical path: $path"
+    return
+  fi
+
+  # Avoid duplicate entries
+  local c
+  for c in "${candidates[@]}"; do
+    if [[ "$c" == "$path" ]]; then
+      return
+    fi
+  done
+
+  candidates+=("$path")
+}
+
+# ── Scan Phase ────────────────────────────────────────────────────────────────
+# App bundle
+if [[ -n "$APP_PATH" ]]; then
+  add_candidate "$APP_PATH"
+fi
+
+# Standard User Library paths
+add_candidate "$HOME/Library/Application Support/$APP_NAME"
+add_candidate "$HOME/Library/Application Support/$APP_LOWER"
+add_candidate "$HOME/Library/Application Support/${APP_LOWER}-agent"
+for f in "$HOME/Library/Application Support/"*"${APP_LOWER}"*(N); do add_candidate "$f"; done
+add_candidate "$HOME/Library/Caches/$APP_NAME"
+add_candidate "$HOME/Library/Caches/$APP_LOWER"
+for f in "$HOME/Library/Caches/"*"${APP_LOWER}"*(N); do add_candidate "$f"; done
+add_candidate "$HOME/Library/Logs/$APP_NAME"
+add_candidate "$HOME/Library/Logs/$APP_LOWER"
+for f in "$HOME/Library/Logs/"*"${APP_LOWER}"*(N); do add_candidate "$f"; done
+add_candidate "$HOME/Library/Saved Application State/${APP_LOWER}.savedState"
+add_candidate "$HOME/Library/WebKit/$APP_LOWER"
+add_candidate "$HOME/Library/Cookies/${APP_LOWER}.binarycookies"
+add_candidate "$HOME/Library/HTTPStorages/$APP_LOWER"
+
+if [[ -n "$BUNDLE_ID" ]]; then
+  add_candidate "$HOME/Library/Application Support/$BUNDLE_ID"
+  for f in "$HOME/Library/Application Support/"*"${BUNDLE_ID}"*(N); do add_candidate "$f"; done
+  add_candidate "$HOME/Library/Caches/$BUNDLE_ID"
+  for f in "$HOME/Library/Caches/"*"${BUNDLE_ID}"*(N); do add_candidate "$f"; done
+  add_candidate "$HOME/Library/Logs/$BUNDLE_ID"
+  for f in "$HOME/Library/Logs/"*"${BUNDLE_ID}"*(N); do add_candidate "$f"; done
+  add_candidate "$HOME/Library/Saved Application State/${BUNDLE_ID}.savedState"
+  add_candidate "$HOME/Library/WebKit/$BUNDLE_ID"
+  add_candidate "$HOME/Library/Cookies/${BUNDLE_ID}.binarycookies"
+  add_candidate "$HOME/Library/HTTPStorages/$BUNDLE_ID"
+fi
+
+for f in "$HOME/Library/Preferences/com.${APP_LOWER}."*(N) \
+         "$HOME/Library/Preferences/${APP_NAME}"*(N) \
+         "$HOME/Library/Containers/com.${APP_LOWER}"*(N) \
+         "$HOME/Library/Group Containers/"*"${APP_LOWER}"*(N) \
+         "$HOME/Library/Caches/com.${APP_LOWER}."*(N) \
+         "$HOME/Library/LaunchAgents/com.${APP_LOWER}."*(N); do
+  add_candidate "$f"
+done
+
+if [[ -n "$BUNDLE_ID" ]]; then
+  for f in "$HOME/Library/Preferences/${BUNDLE_ID}."*(N) \
+           "$HOME/Library/Preferences/${BUNDLE_ID}"*(N) \
+           "$HOME/Library/Containers/${BUNDLE_ID}"*(N) \
+           "$HOME/Library/Group Containers/"*"${BUNDLE_ID}"*(N) \
+           "$HOME/Library/Caches/${BUNDLE_ID}"*(N) \
+           "$HOME/Library/LaunchAgents/${BUNDLE_ID}."*(N); do
+    add_candidate "$f"
+  done
+fi
+
+# System Library paths
+add_candidate "/Library/Application Support/$APP_NAME"
+add_candidate "/Library/Application Support/$APP_LOWER"
+add_candidate "/Library/Logs/$APP_NAME"
+add_candidate "/Library/Logs/$APP_LOWER"
+
+if [[ -n "$BUNDLE_ID" ]]; then
+  add_candidate "/Library/Application Support/$BUNDLE_ID"
+  add_candidate "/Library/Logs/$BUNDLE_ID"
+fi
+
+for f in "/Library/LaunchAgents/com.${APP_LOWER}."*(N) \
+         "/Library/LaunchDaemons/com.${APP_LOWER}."*(N) \
+         "/Library/PrivilegedHelperTools/com.${APP_LOWER}"*(N) \
+         "/Library/Extensions/"*"${APP_LOWER}"*(N); do
+  add_candidate "$f"
+done
+
+if [[ -n "$BUNDLE_ID" ]]; then
+  for f in "/Library/LaunchAgents/${BUNDLE_ID}."*(N) \
+           "/Library/LaunchDaemons/${BUNDLE_ID}."*(N) \
+           "/Library/PrivilegedHelperTools/${BUNDLE_ID}"*(N); do
+    add_candidate "$f"
+  done
+fi
+
+# App-specific custom paths
+if [[ -n "${APP_CUSTOM_PATHS[$APP_LOWER]}" ]]; then
+  for custom_path in $=APP_CUSTOM_PATHS[$APP_LOWER]; do
+    eval "resolved_custom_path=\"$custom_path\""
+    add_candidate "$resolved_custom_path"
+  done
+fi
+
+echo ""
+echo "${BOLD}${BLUE}purgeapp${RESET} — purging ${BOLD}${APP_NAME}${RESET}"
+[[ "$DRY_RUN" == "yes" ]] && echo "${YELLOW}  Dry-run mode${RESET}"
+echo ""
+
+if [[ ${#candidates[@]} -eq 0 ]]; then
+  echo "No leftover files or folders found."
+  echo ""
+  exit 0
+fi
+
+echo "${BOLD}Found the following leftover files/folders:${RESET}"
+for c in "${candidates[@]}"; do
+  echo "  $c"
+done
+echo ""
+
+if [[ "$DRY_RUN" == "yes" ]]; then
+  echo "${YELLOW}Dry-run completed. No files were deleted.${RESET}"
+  echo ""
+  exit 0
+fi
+
+# Interactive confirmation
+if [[ "$YES" != "yes" ]]; then
+  echo -n "Are you sure you want to permanently delete these files? (y/N): "
+  read -r response
+  if [[ "$response" != "y" && "$response" != "Y" ]]; then
+    echo "Aborted."
+    echo ""
+    exit 0
+  fi
+  echo ""
+fi
+
 removed=0
 failed=0
 failed_paths=()
 
-# The only function we need — just delete it and check if it's gone
-nuke() {
-  local path="$1"
-  [[ ! -e "$path" && ! -L "$path" ]] && return  # doesn't exist, skip silently
+# ── Kill processes ────────────────────────────────────────────────────────────
+echo "${BOLD}Stopping processes...${RESET}"
+if pgrep -fi "$APP_NAME" > /dev/null 2>&1; then
+  /usr/bin/sudo /usr/bin/pkill -fi "$APP_NAME" 2>/dev/null
+  sleep 1
+  echo "  ${GREEN}✓${RESET} Killed"
+else
+  echo "  None found"
+fi
+echo ""
 
-  if [[ "$DRY_RUN" == "yes" ]]; then
-    echo "  ${YELLOW}[dry-run]${RESET} $path"
-    return
-  fi
+delete_path() {
+  local path="$1"
+  [[ ! -e "$path" && ! -L "$path" ]] && return
 
   # Try without sudo first, then with sudo
   /bin/rm -rf -- "$path" 2>/dev/null
@@ -96,109 +299,11 @@ nuke() {
   fi
 }
 
-echo ""
-echo "${BOLD}${BLUE}purgeapp${RESET} — purging ${BOLD}${APP_NAME}${RESET}"
-[[ "$DRY_RUN" == "yes" ]] && echo "${YELLOW}  Dry-run mode${RESET}"
-echo ""
-
-# ── Kill processes ────────────────────────────────────────────────────────────
-echo "${BOLD}Stopping processes...${RESET}"
-if pgrep -fi "$APP_NAME" > /dev/null 2>&1; then
-  /usr/bin/sudo /usr/bin/pkill -fi "$APP_NAME" 2>/dev/null
-  sleep 1
-  echo "  ${GREEN}✓${RESET} Killed"
-else
-  echo "  None found"
-fi
-echo ""
-
-# ── App bundle ────────────────────────────────────────────────────────────────
-echo "${BOLD}Removing app bundle...${RESET}"
-if [[ -n "$APP_PATH" ]]; then
-  nuke "$APP_PATH"
-else
-  echo "  ${YELLOW}⚠${RESET}  Not found at /Applications/${APP_NAME}.app"
-fi
-echo ""
-
-# ── User Library ──────────────────────────────────────────────────────────────
-echo "${BOLD}Removing user files...${RESET}"
-nuke "$HOME/Library/Application Support/$APP_NAME"
-nuke "$HOME/Library/Application Support/$APP_LOWER"
-nuke "$HOME/Library/Application Support/${APP_LOWER}-agent"
-for f in "$HOME/Library/Application Support/"*"${APP_LOWER}"*(N); do nuke "$f"; done
-nuke "$HOME/Library/Caches/$APP_NAME"
-nuke "$HOME/Library/Caches/$APP_LOWER"
-for f in "$HOME/Library/Caches/"*"${APP_LOWER}"*(N); do nuke "$f"; done
-nuke "$HOME/Library/Logs/$APP_NAME"
-nuke "$HOME/Library/Logs/$APP_LOWER"
-for f in "$HOME/Library/Logs/"*"${APP_LOWER}"*(N); do nuke "$f"; done
-nuke "$HOME/Library/Saved Application State/${APP_LOWER}.savedState"
-nuke "$HOME/Library/WebKit/$APP_LOWER"
-nuke "$HOME/Library/Cookies/${APP_LOWER}.binarycookies"
-nuke "$HOME/Library/HTTPStorages/$APP_LOWER"
-
-if [[ -n "$BUNDLE_ID" ]]; then
-  nuke "$HOME/Library/Application Support/$BUNDLE_ID"
-  for f in "$HOME/Library/Application Support/"*"${BUNDLE_ID}"*(N); do nuke "$f"; done
-  nuke "$HOME/Library/Caches/$BUNDLE_ID"
-  for f in "$HOME/Library/Caches/"*"${BUNDLE_ID}"*(N); do nuke "$f"; done
-  nuke "$HOME/Library/Logs/$BUNDLE_ID"
-  for f in "$HOME/Library/Logs/"*"${BUNDLE_ID}"*(N); do nuke "$f"; done
-  nuke "$HOME/Library/Saved Application State/${BUNDLE_ID}.savedState"
-  nuke "$HOME/Library/WebKit/$BUNDLE_ID"
-  nuke "$HOME/Library/Cookies/${BUNDLE_ID}.binarycookies"
-  nuke "$HOME/Library/HTTPStorages/$BUNDLE_ID"
-fi
-
-# Globs — expand with (N) so no error on no match, then nuke each result
-for f in "$HOME/Library/Preferences/com.${APP_LOWER}."*(N) \
-         "$HOME/Library/Preferences/${APP_NAME}"*(N) \
-         "$HOME/Library/Containers/com.${APP_LOWER}"*(N) \
-         "$HOME/Library/Group Containers/"*"${APP_LOWER}"*(N) \
-         "$HOME/Library/Caches/com.${APP_LOWER}."*(N) \
-         "$HOME/Library/LaunchAgents/com.${APP_LOWER}."*(N); do
-  nuke "$f"
+# ── Deleting files ────────────────────────────────────────────────────────────
+echo "${BOLD}Removing files...${RESET}"
+for c in "${candidates[@]}"; do
+  delete_path "$c"
 done
-
-if [[ -n "$BUNDLE_ID" ]]; then
-  for f in "$HOME/Library/Preferences/${BUNDLE_ID}."*(N) \
-           "$HOME/Library/Preferences/${BUNDLE_ID}"*(N) \
-           "$HOME/Library/Containers/${BUNDLE_ID}"*(N) \
-           "$HOME/Library/Group Containers/"*"${BUNDLE_ID}"*(N) \
-           "$HOME/Library/Caches/${BUNDLE_ID}"*(N) \
-           "$HOME/Library/LaunchAgents/${BUNDLE_ID}."*(N); do
-    nuke "$f"
-  done
-fi
-echo ""
-
-# ── System Library ────────────────────────────────────────────────────────────
-echo "${BOLD}Removing system files...${RESET}"
-nuke "/Library/Application Support/$APP_NAME"
-nuke "/Library/Application Support/$APP_LOWER"
-nuke "/Library/Logs/$APP_NAME"
-nuke "/Library/Logs/$APP_LOWER"
-
-if [[ -n "$BUNDLE_ID" ]]; then
-  nuke "/Library/Application Support/$BUNDLE_ID"
-  nuke "/Library/Logs/$BUNDLE_ID"
-fi
-
-for f in "/Library/LaunchAgents/com.${APP_LOWER}."*(N) \
-         "/Library/LaunchDaemons/com.${APP_LOWER}."*(N) \
-         "/Library/PrivilegedHelperTools/com.${APP_LOWER}"*(N) \
-         "/Library/Extensions/"*"${APP_LOWER}"*(N); do
-  nuke "$f"
-done
-
-if [[ -n "$BUNDLE_ID" ]]; then
-  for f in "/Library/LaunchAgents/${BUNDLE_ID}."*(N) \
-           "/Library/LaunchDaemons/${BUNDLE_ID}."*(N) \
-           "/Library/PrivilegedHelperTools/${BUNDLE_ID}"*(N); do
-    nuke "$f"
-  done
-fi
 echo ""
 
 # ── Unload launch services ────────────────────────────────────────────────────
@@ -216,8 +321,6 @@ if [[ -n "$BUNDLE_ID" ]]; then
 fi
 echo "  ${GREEN}✓${RESET} Done"
 echo ""
-
-
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo "────────────────────────────────────────"

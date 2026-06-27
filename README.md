@@ -42,6 +42,7 @@ purgeapp --dry-run Workpuls
 
 ```bash
 purgeapp --dry-run    # Preview without deleting
+purgeapp --yes        # Auto-confirm deletion prompts
 purgeapp --version    # Print version
 purgeapp --help       # Show help
 ```
@@ -77,8 +78,24 @@ If you dragged the `.app` to Trash manually, `purgeapp` skips the bundle and con
 
 ## Notes
 
+- By default, `purgeapp` scans all matching candidates first, shows the list to the user, and prompts for confirmation before deleting anything.
 - Some files under `/Library/PrivilegedHelperTools` are SIP-protected and cannot be removed by any tool without disabling System Integrity Protection. `purgeapp` will clearly report these.
 - `purgeapp` tries removal without `sudo` first, then retries with `sudo` for system paths automatically.
+
+---
+
+## Contributing Custom App Paths
+
+If a specific macOS application saves leftover files to custom directories outside of standard user/system library paths, you can contribute to the built-in paths registry inside the [purgeapp](purgeapp) script:
+
+1. Open `purgeapp` and locate the `APP_CUSTOM_PATHS` associative array.
+2. Add your application name in lowercase along with the paths (separated by spaces if multiple):
+   ```zsh
+   APP_CUSTOM_PATHS+=(
+     [myapp]="$HOME/.myapp /usr/local/var/myapp"
+   )
+   ```
+3. Submit a Pull Request to this repository!
 
 ---
 
