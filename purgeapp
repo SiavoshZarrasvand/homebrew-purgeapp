@@ -147,6 +147,34 @@ if [[ -n "$APP_PATH" ]]; then
   add_candidate "$APP_PATH"
 fi
 
+# CLI Executables in PATH
+cli_path=$(whence -p "$APP_NAME" 2>/dev/null)
+if [[ -z "$cli_path" ]]; then
+  cli_path=$(whence -p "$APP_LOWER" 2>/dev/null)
+fi
+
+if [[ -n "$cli_path" ]]; then
+  add_candidate "$cli_path"
+  if [[ -L "$cli_path" ]]; then
+    resolved_target="${cli_path:A}"
+    add_candidate "$resolved_target"
+    
+    # Traverse up to find any parent directory matching the app name (e.g. for uv, pipx, etc.)
+    parent_dir="${resolved_target:h}"
+    while [[ -n "$parent_dir" && "$parent_dir" != "/" ]]; do
+      if is_critical_path "$parent_dir"; then
+        break
+      fi
+      dir_name="${parent_dir:t}"
+      if [[ "${dir_name:l}" == "$APP_LOWER" ]]; then
+        add_candidate "$parent_dir"
+      fi
+      parent_dir="${parent_dir:h}"
+    done
+  fi
+fi
+
+
 # Standard User Library paths
 add_candidate "$HOME/Library/Application Support/$APP_NAME"
 add_candidate "$HOME/Library/Application Support/$APP_LOWER"
