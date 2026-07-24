@@ -54,6 +54,7 @@ purgeapp --help       # Show help
 | Location | Example |
 |---|---|
 | App bundle | `/Applications/Workpuls.app` |
+| CLI executable | `/usr/local/bin/workpuls` (plus symlink targets & app-specific parent folders) |
 | App Support | `~/Library/Application Support/workpuls*` |
 | Preferences | `~/Library/Preferences/com.workpuls.*` |
 | Caches | `~/Library/Caches/com.workpuls.*` |
