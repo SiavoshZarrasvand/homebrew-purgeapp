@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 # purgeapp/release.sh
 
-# release.sh — auto-increment version, tag, compute SHA256, update formula
-# Usage: ./release.sh
+# release.sh — auto-increment/tag version, compute SHA256, update formula
+# Usage: ./release.sh [version]
 
 set -e
 
@@ -15,15 +15,26 @@ RESET='\033[0m'
 GITHUB_USER="SiavoshZarrasvand"
 REPO="homebrew-purgeapp"
 FORMULA="Formula/purgeapp.rb"
-SCRIPT="purgeapp"
+SCRIPT="lib/core.zsh"
 
-# ── Auto-increment patch version from current script ─────────────────────────
+# ── Determine Version ─────────────────────────────────────────────────────────
 CURRENT=$(grep '^VERSION=' "$SCRIPT" | tr -d 'VERSION="')
-MAJOR=$(echo "$CURRENT" | cut -d. -f1)
-MINOR=$(echo "$CURRENT" | cut -d. -f2)
-PATCH=$(echo "$CURRENT" | cut -d. -f3)
-NEW_PATCH=$(( PATCH + 1 ))
-VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+if [[ -n "$1" ]]; then
+  VERSION="$1"
+else
+  TAG_CHECK="v${CURRENT}"
+  if git rev-parse "$TAG_CHECK" >/dev/null 2>&1; then
+    MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+    MINOR=$(echo "$CURRENT" | cut -d. -f2)
+    PATCH=$(echo "$CURRENT" | cut -d. -f3)
+    NEW_PATCH=$(( PATCH + 1 ))
+    VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+  else
+    VERSION="${CURRENT}"
+  fi
+fi
+
 TAG="v${VERSION}"
 TARBALL_URL="https://github.com/${GITHUB_USER}/${REPO}/archive/refs/tags/${TAG}.tar.gz"
 
@@ -48,7 +59,7 @@ fi
 echo "${BOLD}Step 1: Bumping version ${CURRENT} → ${VERSION}...${RESET}"
 sed -i '' "s/^VERSION=.*/VERSION=\"${VERSION}\"/" "$SCRIPT"
 git add "$SCRIPT"
-git commit -m "Bump version to ${VERSION}"
+git commit -m "Bump version to ${VERSION}" || true
 git push origin main
 echo "  ${GREEN}✓${RESET} Pushed"
 
