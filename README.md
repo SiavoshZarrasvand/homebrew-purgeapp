@@ -1,8 +1,18 @@
 # 🧹 purgeapp
 
-**Completely remove a macOS app and all its leftover files — in one command.**
+**Plugin-based discovery and uninstall system for macOS applications and software ecosystems.**
 
-Most uninstallers only delete the `.app` bundle. `purgeapp` hunts down and removes everything: preferences, caches, logs, launch agents, daemons, containers, and support files — even if the app was already manually deleted.
+`purgeapp` is an application-aware discovery and removal system. Unlike traditional uninstallers or blind path-deletion scripts, `purgeapp` uses dedicated plugins to discover application artifacts across processes, LaunchAgents, LaunchDaemons, Privileged Helpers, Frameworks, User/System Library containers, package managers, and shell configurations.
+
+---
+
+## Features
+
+- **Plugin Architecture**: Application-specific plugins (`appleconnect`, `homebrew`) teach `purgeapp` how to locate and verify artifacts dynamically.
+- **Discovery First**: Discovers and classifies artifacts into `Safe to Remove`, `Disposable Caches`, `Package Manager Artifacts`, `Protected System Artifacts`, and `User Code`.
+- **Safety Model**: Never deletes user source code repositories (e.g. `~/Documents/Github/**`) or critical macOS system directories. SIP-protected system receipts are identified and reported safely.
+- **Dry-Run Mode**: Inspect the complete inventory before deleting anything.
+- **Safe Shell Configuration**: Removes target shell initialization lines cleanly without altering unrelated user shell profile code.
 
 ---
 
@@ -18,102 +28,56 @@ brew install purgeapp
 ## Usage
 
 ```bash
-purgeapp <AppName>
+purgeapp [options] <target>
 ```
 
-All of these work:
+### Examples
 
 ```bash
+# Uninstall AppleConnect application & corporate developer artifacts
+purgeapp appleconnect
+
+# Remove Homebrew installation & shell integrations
+purgeapp homebrew
+
+# Uninstall standard macOS application
 purgeapp Workpuls
-purgeapp Workpuls.app
-purgeapp "pgAdmin 4"
-purgeapp pgAdmin\ 4.app
+
+# List available plugins
+purgeapp list
 ```
 
-### Dry run first (recommended)
+### Dry Run (Recommended)
 
-See exactly what will be removed before deleting anything:
+Preview the discovered inventory without making any changes:
 
 ```bash
-purgeapp --dry-run Workpuls
+purgeapp appleconnect --dry-run
+purgeapp homebrew --dry-run
 ```
 
 ### Options
 
 ```bash
-purgeapp --dry-run    # Preview without deleting
-purgeapp --yes        # Auto-confirm deletion prompts
-purgeapp --version    # Print version
-purgeapp --help       # Show help
+  -d, --dry-run    Show discovery inventory without deleting anything
+  -y, --yes        Auto-confirm deletion prompts
+  -v, --version    Print version
+  -h, --help       Show help message
 ```
 
 ---
 
-## What it removes
+## Plugin System & Architecture
 
-| Location | Example |
-|---|---|
-| App bundle | `/Applications/Workpuls.app` |
-| CLI executable | `/usr/local/bin/workpuls` (plus symlink targets & app-specific parent folders) |
-| App Support | `~/Library/Application Support/workpuls*` |
-| Preferences | `~/Library/Preferences/com.workpuls.*` |
-| Caches | `~/Library/Caches/com.workpuls.*` |
-| Logs | `~/Library/Logs/workpuls*` |
-| Containers | `~/Library/Containers/com.workpuls*` |
-| Group Containers | `~/Library/Group Containers/*workpuls*` |
-| Launch Agents | `~/Library/LaunchAgents/com.workpuls.*` |
-| System Launch Agents | `/Library/LaunchAgents/com.workpuls.*` |
-| System Launch Daemons | `/Library/LaunchDaemons/com.workpuls.*` |
-| Privileged Helpers | `/Library/PrivilegedHelperTools/com.workpuls.*` |
-| Saved App State | `~/Library/Saved Application State/` |
-| WebKit storage | `~/Library/WebKit/` |
-| Cookies | `~/Library/Cookies/` |
+`purgeapp` uses a structured discovery lifecycle:
 
----
-
-## Works even if you already deleted the app
-
-If you dragged the `.app` to Trash manually, `purgeapp` skips the bundle and continues cleaning up all the leftover files.
-
----
-
-## Notes
-
-- By default, `purgeapp` scans all matching candidates first, shows the list to the user, and prompts for confirmation before deleting anything.
-- Some files under `/Library/PrivilegedHelperTools` are SIP-protected and cannot be removed by any tool without disabling System Integrity Protection. `purgeapp` will clearly report these.
-- `purgeapp` tries removal without `sudo` first, then retries with `sudo` for system paths automatically.
-
----
-
-## Contributing Custom App Paths
-
-If a specific macOS application saves leftover files to custom directories outside of standard user/system library paths, you can contribute to the built-in paths registry inside the [purgeapp](purgeapp) script:
-
-1. Open `purgeapp` and locate the `APP_CUSTOM_PATHS` associative array.
-2. Add your application name in lowercase along with the paths (separated by spaces if multiple):
-   ```zsh
-   APP_CUSTOM_PATHS+=(
-     [myapp]="$HOME/.myapp /usr/local/var/myapp"
-   )
-   ```
-3. Submit a Pull Request to this repository!
-
----
-
-## Upgrade
-
-```bash
-brew update && brew upgrade purgeapp
+```text
+Plugin -> Discovery -> Inventory -> Classification -> Confirmation -> Removal -> Verification
 ```
 
----
+### Custom Paths Removal
 
-## Uninstall purgeapp itself
-
-```bash
-brew uninstall purgeapp
-brew untap SiavoshZarrasvand/purgeapp
-```
+Arbitrary `custom-paths` deletion was completely removed in v4.0.0. `purgeapp` relies exclusively on application-aware discovery plugins rather than user-provided file deletion lists.
 
 ---
 
