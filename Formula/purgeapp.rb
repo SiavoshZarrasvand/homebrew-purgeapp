@@ -3,7 +3,7 @@ class Purgeapp < Formula
   desc "Plugin-based discovery & uninstall system for macOS"
   homepage "https://github.com/SiavoshZarrasvand/homebrew-purgeapp"
   url "https://github.com/SiavoshZarrasvand/homebrew-purgeapp/archive/refs/tags/v4.0.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "75883923f1e7ec3fdaa257f5f057616aea0bc6c84f0a728165c362f8272620f5"
   license "MIT"
   version "4.0.0"
 
